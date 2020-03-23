@@ -1,0 +1,17 @@
+{
+  "name": "virussim",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Arden Rasmussen <ardenisthebest@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "serve": "http-server . -c1"
+  },
+  "dependencies": {
+    "dat.gui": "^0.7.6",
+    "paper": "^0.12.4"
+  },
+  "devDependencies": {
+    "http-server": "^0.12.1"
+  }
+}
