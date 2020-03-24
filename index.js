@@ -2,6 +2,7 @@
 const width = 500
 const height = 350
 const radius = 3
+const wallLen = 500;
 const colors = {
   default: '#03a9f4',
   infected: '#e91e63',
@@ -12,9 +13,11 @@ var elem = document.getElementById('scene');
 var two = new Two({width: width, height: height}).appendTo(elem);
 
 var nodes = []
+var walls = []
 var active = false;
 
-var data = {t: [], healthy: [], infected: [], recovered: [], dead: []};
+var data = {t: 0, healthy: 0, infected: 0, recovered: 0, dead: 0};
+var updatePlot = 1.0;
 
 const spawnNodes = (n) => {
   if (nodes.length > n) {
@@ -86,54 +89,116 @@ class Params {
     this.startStop = () => {
       active = !active;
       if (active) {
-        data = {t: [0], healthy: [0], infected: [0], recovered: [0], dead: [0]};
+        data = {t: 0, healthy: 0, infected: 0, recovered: 0, dead: 0};
+        updatePlot = 1.0;
         setMoving(this.movement, this.movementMinSpeed, this.movementMaxSpeed);
         for (var node of nodes) {
           if (node.state == 1) node.age = this.recoveryRate + _.random(0, this.recoveryVariance, true);
-          if (node.state == 0) data.healthy[0] += 1;
-          if (node.state == 1) data.infected[0] += 1;
-          if (node.state == 2) data.recovered[0] += 1;
-          if (node.state == 3) data.dead[0] += 1;
+          if (node.state == 0) data.healthy += 1;
+          if (node.state == 1) data.infected += 1;
+          if (node.state == 2) data.recovered += 1;
+          if (node.state == 3) data.dead += 1;
         }
         Plotly.newPlot('plot', [
-          {x: data.t, y: data.infected, stackgroup: 'one', name: 'Infected', marker: {color: colors.infected}},
-          {x: data.t, y: data.recovered, stackgroup: 'one', name: 'Recovered', marker: {color: colors.recovered}},
-          {x: data.t, y: data.healthy, stackgroup: 'one', name: 'Healthy', marker: {color: colors.default}},
-          {x: data.t, y: data.dead, stackgroup: 'one', name: 'Dead', marker: {color: colors.dead}}
+          {x: [data.t], y: [data.infected], stackgroup: 'one', name: 'Infected', marker: {color: colors.infected}},
+          {x: [data.t], y: [data.recovered], stackgroup: 'one', name: 'Recovered', marker: {color: colors.recovered}},
+          {x: [data.t], y: [data.healthy], stackgroup: 'one', name: 'Healthy', marker: {color: colors.default}},
+          {x: [data.t], y: [data.dead], stackgroup: 'one', name: 'Dead', marker: {color: colors.dead}}
         ], {title: 'Infections'});
       }
     };
     this.reset = () => {
       active = false;
       nodes = []
+      walls = []
       two.clear();
       spawnNodes(this.count);
       initialInfect(this.initialInfected);
+    };
+    this.clear = () => {
+      for (var wall of walls) {
+        two.remove(wall);
+      }
+      walls = []
     }
   }
 }
 var params = new Params();
 
+const pointCircle = (px, py, cx, cy, r) => {
+  var dx = px - cx;
+  var dy = py - cy;
+  if ((dx * dx) + (dy * dy) <= r * r) return true;
+  return false;
+}
+const circleCircle = (c1x, c1y, c1r, c2x, c2y, c2r) => {
+  var dx = c1x - c2x;
+  var dy = c1y - c2y;
+  if ((dx * dx) + (dy * dy) <= (c1r + c2r) * (c1r + c2r)) return true;
+  return false;
+}
+const linePoint = (x1, y1, x2, y2, px, py) => {
+  var d1 = Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+  var d2 = Math.sqrt((px - x2) * (px - x2) + (py - y2) * (py - y2));
+  var lineLen = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+  if (d1 + d2 >= lineLen - 0.1 && d1 + d2 <= lineLen + 0.1) return true;
+  return false;
+}
+const lineCircle = (x1, y1, x2, y2, cx, cy, r) => {
+  if (pointCircle(x1, y1, cx, cy, r) || pointCircle(x2, y2, cx, cy, r)) return true;
+  var dx = x1 - x2;
+  var dy = y1 - y2;
+  var len = Math.sqrt((dx * dx) + (dy * dy));
+  var dot = (((cx - x1) * (x2 - x1)) + ((cy - y1) * (y2 - y1))) / (len * len);
+  var clx = x1 + (dot * (x2 - x1));
+  var cly = y1 + (dot * (y2 - y1));
+  if (!linePoint(x1, y1, x2, y2, clx, cly)) return false;
+  dx = clx - cx;
+  dy = cly - cy;
+  var dist = Math.sqrt((dx * dx) + (dy * dy));
+  if (dist <= r) return true;
+  return false;
+}
+
 const processFrame = () => {
   if (!active) return;
   const deltat = two.timeDelta / 1000;
-  data.t.push(_.last(data.t) + deltat);
-  data.healthy.push(0);
-  data.infected.push(0);
-  data.recovered.push(0);
-  data.dead.push(0);
+  data.t += deltat;
+  data.healthy = 0;
+  data.infected = 0;
+  data.recovered = 0;
+  data.dead = 0;
   for (var i = 0; i < nodes.length; ++i) {
     var node = nodes[i];
-    if (node.state == 0) data.healthy[data.healthy.length - 1] += 1;
-    if (node.state == 1) data.infected[data.healthy.length - 1] += 1;
-    if (node.state == 2) data.recovered[data.healthy.length - 1] += 1;
-    if (node.state == 3) data.dead[data.healthy.length - 1] += 1;
+    if (node.state == 0) data.healthy += 1;
+    if (node.state == 1) data.infected += 1;
+    if (node.state == 2) data.recovered += 1;
+    if (node.state == 3) data.dead += 1;
     if (node.state == 3) continue;
     // Update data
     if (node.moving) {
-      // Process wall collision
+      // Process edge collision
       if (node.x + node.dx * deltat < 0 || node.x + node.dx * deltat >= width) node.dx *= -1;
       if (node.y + node.dy * deltat < 0 || node.y + node.dy * deltat >= height) node.dy *= -1;
+      // Process wall collision
+      for (var j = 0; j < walls.length; ++j) {
+        if (circleCircle(node.x, node.y, radius, walls[j].x1, walls[j].y1, wallLen) && circleCircle(node.x, node.y, radius, walls[j].x2, walls[j].y2, wallLen) && lineCircle(walls[j].x1, walls[j].y1, walls[j].x2, walls[j].y2, node.x, node.y, radius)) {
+          var dx = walls[j].x1 - walls[j].x2;
+          var dy = walls[j].y1 - walls[j].y2;
+          var len = Math.sqrt((dx * dx) + (dy * dy));
+          var dot = (((node.x - walls[j].x1) * (walls[j].x2 - walls[j].x1)) + ((node.y - walls[j].y1) * (walls[j].y2 - walls[j].y1))) / (len * len);
+          var clx = walls[j].x1 + (dot * (walls[j].x2 - walls[j].x1));
+          var cly = walls[j].y1 + (dot * (walls[j].y2 - walls[j].y1));
+          var nx = node.x - clx;
+          var ny = node.y - cly;
+          len = Math.sqrt((nx * nx) + (ny * ny));
+          nx /= len;
+          ny /= len;
+          dot = node.dx * nx + node.dy * ny;
+          node.dx -= 2 * dot * nx;
+          node.dy -= 2 * dot * ny;
+        }
+      }
       // Process node collision 
       for (var j = 0; j < nodes.length; ++j) {
         if (i == j) continue;
@@ -151,16 +216,13 @@ const processFrame = () => {
           }
           if (params.movementSystem == 0) {
           } else if (params.movementSystem == 1) {
-            console.log(node, nodes[j]);
             var nx = node.x - nodes[j].x;
             var ny = node.y - nodes[j].y;
             const nlen = Math.sqrt(nx * nx + ny * ny)
             nx /= nlen;
             ny /= nlen;
-            console.log(nx, ny);
             node.dx = node.dx - 2 * (node.dx * nx + node.dy * ny) * nx;
             node.dy = node.dy - 2 * (node.dx * nx + node.dy * ny) * ny;
-            console.log(node.dx, node.dy);
           } else if (params.movementSystem == 2) {
           }
         }
@@ -206,6 +268,7 @@ virus.add(params, 'mortality', 0, 1);
 
 gui.add(params, 'startStop');
 gui.add(params, 'reset');
+gui.add(params, 'clear');
 
 countVal.onChange((val) => {
   spawnNodes(val);
@@ -220,7 +283,30 @@ initialInfect(params.initialInfected);
 two.bind('update', () => {
   if (active) {
     processFrame();
-    Plotly.extendTraces('plot', {y: [[_.last(data.infected)], [_.last(data.recovered)], [_.last(data.healthy)], [_.last(data.dead)]]}, [0, 1, 2, 3])
-    if (params.stopTime > 0 && params.stopTime < _.last(data.t)) active = false;
+    if (data.t + updatePlot > 0) {
+      Plotly.extendTraces('plot', {x: [[data.t], [data.t], [data.t], [data.t]], y: [[data.infected], [data.recovered], [data.healthy], [data.dead]]}, [0, 1, 2, 3])
+      updatePlot = -data.t - 0.25;
+    }
+    if (params.stopTime > 0 && params.stopTime < data.t) active = false;
   }
 }).play();
+
+var lastX = null;
+var lastY = null;
+
+elem.onmousemove = function (e) {
+  var x = e.pageX - this.offsetLeft - (this.offsetWidth - width) / 2;
+  var y = e.pageY - this.offsetTop;
+  if (x < 0 || x > width || e.buttons != 1) return;
+  if ((x - lastX) * (x - lastX) + (y - lastY) * (y - lastY) <= wallLen) return;
+  if (lastX != null) {
+    walls.push({x1: lastX, y1: lastY, x2: x, y2: y, g: two.makeLine(lastX, lastY, x, y)});
+    _.last(walls).g.linewidth = 3;
+  }
+  lastX = x;
+  lastY = y;
+}
+elem.onmouseup = function () {
+  lastX = null;
+  lastY = null;
+}
