@@ -221,9 +221,9 @@ const processFrame = () => {
             const nlen = Math.sqrt(nx * nx + ny * ny)
             nx /= nlen;
             ny /= nlen;
-            node.dx = node.dx - 2 * (node.dx * nx + node.dy * ny) * nx;
-            node.dy = node.dy - 2 * (node.dx * nx + node.dy * ny) * ny;
-          } else if (params.movementSystem == 2) {
+            var dot = node.dx * nx + node.dy * ny;
+            node.dx -= 2 * dot * nx;
+            node.dy -= 2 * dot * ny;
           }
         }
       }
@@ -256,7 +256,7 @@ initial.add(params, 'movement', 0, 1);
 
 var simulation = gui.addFolder('Simulation');
 simulation.add(params, 'stopTime');
-simulation.add(params, 'movementSystem', {'None': 0, 'Fixed': 1, 'Elastic': 2});
+simulation.add(params, 'movementSystem', {'None': 0, 'Elastic': 1});
 simulation.add(params, 'movementMaxSpeed', 0, 100);
 simulation.add(params, 'movementMinSpeed', 0, 100);
 
