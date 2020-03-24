@@ -250,7 +250,7 @@ const processFrame = () => {
 var gui = new dat.GUI();
 
 var initial = gui.addFolder('Initial Conditions');
-var countVal = initial.add(params, 'count', 1, 500);
+var countVal = initial.add(params, 'count', 1, 1000);
 var initialInfectedVal = initial.add(params, 'initialInfected', 0, 1);
 initial.add(params, 'movement', 0, 1);
 
